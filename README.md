@@ -15,4 +15,4 @@ Check it out [here](https://vracton.github.io/ascii-cam-gen/camera.html)!
 
 ![image](https://github.com/user-attachments/assets/59bd7313-25ba-497b-9432-47a949d064cf)
 
-To use this locally, simply download and open the index.html file, no other dependencies or files are needed.
+To use this locally, simply download and open the camera.html file, no other dependencies or files are needed.
