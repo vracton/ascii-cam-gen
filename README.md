@@ -1,7 +1,5 @@
 # ascii-cam-gen
 
-**NOTE: this doesn't work in all browsers, such as opera. however, it is confirmed to be working on edge, so try that if it doesn't seem to be working**
-
 ![image](https://github.com/user-attachments/assets/48f28beb-ae25-4519-8e6f-321906ddf52f)
 
 This website allows you to take pictures with your camera and convert them to ascii characters!
