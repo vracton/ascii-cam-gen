@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Webcam ASCII Art</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #282c34;
+            color: #ffffff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #main-container {
+            display: flex;
+            flex: 1;
+            position: relative;
+        }
+
+        #settings-panel, #gallery-panel {
+            width: 400px;
+            background-color: #3a3f47;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            transition: transform 0.3s ease;
+        }
+
+        #settings-panel {
+            left: 0;
+            transform: translateX(-100%);
+        }
+
+        #gallery-panel {
+            right: 0;
+            transform: translateX(100%);
+        }
+
+        #settings-panel.open, #gallery-panel.open {
+            transform: translateX(0);
+        }
+
+        #webcam-container {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #282c34;
+            margin: 0 400px;
+        }
+
+        #asciiOutput {
+            font-family: monospace;
+            font-size: 8px;
+            background: black;
+            color: white;
+            display: inline-block;
+            white-space: pre;
+            line-height: 10px;
+            padding: 10px;
+            border: 1px solid #444;
+            margin-top: 20px;
+        }
+
+        .gallery {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .gallery-item {
+            margin: 10px;
+        }
+
+        .gallery-item div {
+            font-family: monospace;
+            white-space: pre;
+            line-height: 8px;
+            font-size: 6px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="main-container">
+        <div id="settings-panel" class="bg-dark text-white p-3">
+            <h1 class="text-center">Settings</h1>
+            <div class="form-group">
+                <label for="fontSize">Font Size</label>
+                <input type="range" class="form-control" id="fontSize" min="4" max="12" value="8">
+            </div>
+            <div class="form-group">
+                <label for="characterSet">Custom ASCII Characters</label>
+                <input type="text" class="form-control" id="characterSet" placeholder="@%#*+=-:.">
+            </div>
+            <div class="form-group">
+                <label for="colorMode">Color Mode</label>
+                <select class="form-control" id="colorMode">
+                    <option value="color">Color</option>
+                    <option value="bw">Black & White</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="customColor">Custom Color</label>
+                <input type="color" class="form-control" id="customColor" value="#ffffff">
+            </div>
+            <button id="applySettings" class="btn btn-primary btn-block">Apply Settings</button>
+        </div>
+
+        <div id="webcam-container" class="d-flex flex-column align-items-center justify-content-center">
+            <div class="button-group">
+                <button id="openSettingsButton" class="btn btn-secondary mb-2">Open Settings</button>
+                <button id="openGalleryButton" class="btn btn-secondary mb-2">Open Gallery</button>
+                <button id="captureButton" class="btn btn-success mt-2">Capture</button>
+            </div>
+            <video style="display:none;" id="webcam" autoplay></video>
+            <div id="asciiOutput" readonly></div>
+        </div>
+
+        <div id="gallery-panel" class="bg-dark text-white p-3" style="width: 50vw;">
+            <button id="closeGalleryButton" class="btn btn-danger" style="position: absolute; top: 10px; right: 10px;">X</button>
+            <h1 class="text-center">Gallery</h1>
+            <div class="gallery" id="gallery"></div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        const webcam = document.getElementById('webcam');
+        const asciiOutput = document.getElementById('asciiOutput');
+        const captureButton = document.getElementById('captureButton');
+        const gallery = document.getElementById('gallery');
+
+        const fontSizeInput = document.getElementById('fontSize');
+        const characterSetInput = document.getElementById('characterSet');
+        const colorModeSelect = document.getElementById('colorMode');
+        const customColorInput = document.getElementById('customColor');
+        const applySettingsButton = document.getElementById('applySettings');
+
+        const settingsPanel = document.getElementById('settings-panel');
+        const galleryPanel = document.getElementById('gallery-panel');
+        const openSettingsButton = document.getElementById('openSettingsButton');
+        const openGalleryButton = document.getElementById('openGalleryButton');
+
+        let CHARACTERS = '@%#*+=-:. '; //default char set
+        let fontSize = 8;
+        let colorMode = 'color';
+        let customColor = '#ffffff';
+
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                webcam.srcObject = stream;
+                webcam.play();
+            })
+            .catch(err => console.error('Webcam not accessible', err));
+
+        function rgbToHex(r, g, b) {
+            return `rgb(${r},${g},${b})`;
+        }
+
+        function captureFrame(video, width = 150) {
+            const scale = video.videoHeight / video.videoWidth;
+            const height = Math.round(width * scale * 0.55);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, width, height);
+
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const pixels = imageData.data;
+
+            let ascii = "";
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const i = (y * width + x) * 4;
+                    const r = pixels[i];
+                    const g = pixels[i + 1];
+                    const b = pixels[i + 2];
+                    const brightness = (r + g + b) / 3;
+                    const charIndex = Math.floor((brightness / 255) * (CHARACTERS.length - 1));
+                    const char = CHARACTERS[charIndex];
+
+                    if (colorMode === 'color') {
+                        ascii += `<span style="color:${rgbToHex(r, g, b)}; font-size:${fontSize}px;">${char}</span>`;
+                    } else {
+                        ascii += `<span style="color:${customColor}; font-size:${fontSize}px;">${char}</span>`;
+                    }
+                }
+                ascii += '<br/>';
+            }
+            return ascii;
+        }
+
+        function updateAsciiArt() {
+            asciiOutput.innerHTML = captureFrame(webcam, 150);
+        }
+
+        setInterval(updateAsciiArt, 100);
+
+        applySettingsButton.addEventListener('click', () => {
+            CHARACTERS = characterSetInput.value || '@%#*+=-:. ';
+            fontSize = parseInt(fontSizeInput.value) || 8;
+            colorMode = colorModeSelect.value;
+            customColor = customColorInput.value;
+        });
+
+        captureButton.addEventListener('click', () => {
+            const asciiArt = asciiOutput.innerHTML;
+
+            const galleryItem = document.createElement('div');
+            galleryItem.classList.add('gallery-item');
+
+            const textarea = document.createElement('div');
+            textarea.innerHTML = asciiArt;
+            textarea.style.fontFamily = 'monospace';
+            textarea.style.whiteSpace = 'pre';
+            textarea.style.lineHeight = '5px';
+            galleryItem.appendChild(textarea);
+
+            const buttonContainer = document.createElement('div');
+            buttonContainer.classList.add('d-flex', 'justify-content-center', 'mb-2');
+
+            const downloadButton = document.createElement('button');
+            downloadButton.textContent = 'Download';
+            downloadButton.classList.add('btn', 'btn-primary', 'mr-2');
+            downloadButton.addEventListener('click', () => {
+                const blob = new Blob([asciiArt], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'ascii_art.html';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+            buttonContainer.appendChild(downloadButton);
+
+            const copyButton = document.createElement('button');
+            copyButton.textContent = 'Copy';
+            copyButton.classList.add('btn', 'btn-secondary', 'mr-2');
+            copyButton.addEventListener('click', () => {
+                const tempTextarea = document.createElement('textarea');
+                tempTextarea.value = asciiArt.replace(/<br\/>/g, '\n').replace(/<[^>]+>/g, '');
+                document.body.appendChild(tempTextarea);
+                tempTextarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempTextarea);
+                alert('ASCII art copied to clipboard!');
+            });
+            buttonContainer.appendChild(copyButton);
+
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.classList.add('btn', 'btn-danger');
+            deleteButton.addEventListener('click', () => {
+                gallery.removeChild(galleryItem);
+            });
+            buttonContainer.appendChild(deleteButton);
+
+            galleryItem.appendChild(buttonContainer);
+
+            gallery.appendChild(galleryItem);
+        });
+
+        openSettingsButton.addEventListener('click', () => {
+            settingsPanel.classList.toggle('open');
+        });
+        openGalleryButton.addEventListener('click', () => {
+            galleryPanel.classList.toggle('open');
+        });
+
+        const closeGalleryButton = document.getElementById('closeGalleryButton');
+        closeGalleryButton.addEventListener('click', () => {
+            galleryPanel.classList.remove('open');
+        });
+    </script>
+</body>
+</html>
